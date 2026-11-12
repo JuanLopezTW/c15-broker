@@ -117,7 +117,7 @@ class StompSeguridadInterceptorTest {
     }
 
     @Test
-    void siLosEquiposLleganUnPocoDespuesDeLaSuscripcionSeEsperaYPasa() throws Exception {
+    void siLosEquiposLleganUnPocoDespuesDeLaSuscripcionSeEsperaYPasa() {
         CompletableFuture<Void> llegan = CompletableFuture.runAsync(
                 () -> equipos.guardar("m2", Map.of("m2-e1", List.of("auth0|ana")), Duration.ofMinutes(25)),
                 CompletableFuture.delayedExecutor(150, TimeUnit.MILLISECONDS));
