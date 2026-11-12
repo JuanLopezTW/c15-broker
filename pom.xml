@@ -35,7 +35,7 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-        <!-- El WebSocket de todo el sistema (/ws, STOMP) -->
+        <!-- El WebSocket del sistema completo (/ws, STOMP) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>

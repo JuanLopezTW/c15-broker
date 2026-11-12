@@ -13,7 +13,7 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
 /**
- * El WebSocket de todo el sistema: los jugadores solo se conectan aqui (/ws). Los demas servicios publican en
+ * El WebSocket del sistema completo: los jugadores solo se conectan aqui (/ws). Los demas servicios publican en
  * los topics por RabbitMQ y llegan aqui por el relay ({@code c15.stomp.broker.relay=true}). Con el relay
  * apagado (pruebas, una sola replica sin los otros servicios) se usa el broker en memoria.
  *
