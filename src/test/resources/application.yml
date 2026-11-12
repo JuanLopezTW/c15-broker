@@ -1,0 +1,26 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://escaperoomc15.us.auth0.com/
+          audiences: https://api.escaperoomc15
+
+c15:
+  estado:
+    margen: 10m
+  eventos:
+    # Sin Kafka: las pruebas publican los eventos directo (ApplicationEventPublisher); *KafkaTest lo enciende
+    kafka: false
+  stomp:
+    broker:
+      relay: false
+
+management:
+  otlp:
+    tracing:
+      export:
+        enabled: false
+    logging:
+      export:
+        enabled: false
