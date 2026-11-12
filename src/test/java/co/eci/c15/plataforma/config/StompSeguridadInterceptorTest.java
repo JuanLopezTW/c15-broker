@@ -1,5 +1,8 @@
 package co.eci.c15.plataforma.config;
 
+import static org.awaitility.Awaitility.await;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
 import co.eci.c15.broker.EquiposPartidasEnMemoria;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -76,9 +79,13 @@ class StompSeguridadInterceptorTest {
     void elConnectSinTokenOConTokenInvalidoSeRechaza() {
         when(tokens.decode("malo")).thenThrow(new BadJwtException("firma invalida"));
 
-        assertThrows(MessagingException.class, () -> interceptor.preSend(conectar(null), canal));
-        assertThrows(MessagingException.class, () -> interceptor.preSend(conectar("otra-cosa"), canal));
-        assertThrows(MessagingException.class, () -> interceptor.preSend(conectar("Bearer malo"), canal));
+        Message<byte[]> sinToken = conectar(null);
+        Message<byte[]> sinBearer = conectar("otra-cosa");
+        Message<byte[]> tokenInvalido = conectar("Bearer malo");
+
+        assertThrows(MessagingException.class, () -> interceptor.preSend(sinToken, canal));
+        assertThrows(MessagingException.class, () -> interceptor.preSend(sinBearer, canal));
+        assertThrows(MessagingException.class, () -> interceptor.preSend(tokenInvalido, canal));
     }
 
     @Test
@@ -111,15 +118,9 @@ class StompSeguridadInterceptorTest {
 
     @Test
     void siLosEquiposLleganUnPocoDespuesDeLaSuscripcionSeEsperaYPasa() throws Exception {
-        Thread llegan = new Thread(() -> {
-            try {
-                Thread.sleep(150);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            equipos.guardar("m2", Map.of("m2-e1", List.of("auth0|ana")), Duration.ofMinutes(25));
-        });
-        llegan.start();
+        CompletableFuture<Void> llegan = CompletableFuture.runAsync(
+                () -> equipos.guardar("m2", Map.of("m2-e1", List.of("auth0|ana")), Duration.ofMinutes(25)),
+                CompletableFuture.delayedExecutor(150, TimeUnit.MILLISECONDS));
 
         assertTrue(pasa(comando(StompCommand.SUBSCRIBE, "/topic/partidas/m2/equipos/m2-e1/posiciones", "auth0|ana")));
         llegan.join();
@@ -140,7 +141,9 @@ class StompSeguridadInterceptorTest {
                 new Thread(() -> pasa(comando(StompCommand.SUBSCRIBE, "/topic/partidas/f1/equipos/e1/roles", "auth0|x1"))),
                 new Thread(() -> pasa(comando(StompCommand.SUBSCRIBE, "/topic/partidas/f2/equipos/e1/roles", "auth0|x2"))));
         ocupan.forEach(Thread::start);
-        Thread.sleep(100);
+        // Las dos quedan dormidas dentro de la espera (ocupando el tope)
+        await().atMost(Duration.ofSeconds(2))
+                .until(() -> ocupan.stream().allMatch(t -> t.getState() == Thread.State.TIMED_WAITING));
 
         long antes = System.nanoTime();
         assertFalse(pasa(comando(StompCommand.SUBSCRIBE, "/topic/partidas/f3/equipos/e1/roles", "auth0|x3")));
@@ -148,15 +151,9 @@ class StompSeguridadInterceptorTest {
         for (Thread t : ocupan) t.join();
 
         // Al terminar las esperas el tope se libera
-        Thread llegan = new Thread(() -> {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            equipos.guardar("m3", Map.of("m3-e1", List.of("auth0|ana")), Duration.ofMinutes(25));
-        });
-        llegan.start();
+        CompletableFuture<Void> llegan = CompletableFuture.runAsync(
+                () -> equipos.guardar("m3", Map.of("m3-e1", List.of("auth0|ana")), Duration.ofMinutes(25)),
+                CompletableFuture.delayedExecutor(100, TimeUnit.MILLISECONDS));
         assertTrue(pasa(comando(StompCommand.SUBSCRIBE, "/topic/partidas/m3/equipos/m3-e1/roles", "auth0|ana")));
         llegan.join();
     }

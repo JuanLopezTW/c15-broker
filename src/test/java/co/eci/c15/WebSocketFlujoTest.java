@@ -130,7 +130,8 @@ class WebSocketFlujoTest {
 
         eventos.publishEvent(new MatchFinishedEvent("m-ws", "TIME_UP", null, Map.of(), Map.of()));
         BlockingQueue<String> tarde = escuchar(beto, "/topic/partidas/m-ws/equipos/e1/inventario");
-        Thread.sleep(300);
+        // Pausa para que el broker procese (y rechace) la suscripcion antes de publicar
+        await().pollDelay(Duration.ofMillis(300)).until(() -> true);
         topics.convertAndSend("/topic/partidas/m-ws/equipos/e1/inventario", "ya no");
         assertNull(tarde.poll(500, TimeUnit.MILLISECONDS), "terminada la partida, nadie se suscribe a su equipo");
 

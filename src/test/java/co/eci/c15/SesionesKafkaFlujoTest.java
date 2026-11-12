@@ -68,7 +68,8 @@ class SesionesKafkaFlujoTest {
                 }).get(10, TimeUnit.SECONDS);
 
         ana.send("/app/salas/k-s1/sesion", "");
-        Thread.sleep(500);
+        // Pausa para que el broker registre la sesion antes de cortar (no hay nada que observar desde aqui)
+        await().pollDelay(Duration.ofMillis(500)).until(() -> true);
         ana.disconnect();
 
         List<ConsumerRecord<String, String>> avisos = new ArrayList<>();
