@@ -42,6 +42,7 @@ import static org.mockito.Mockito.when;
  * sesiones (topic c15.sesion) y los topics de un equipo solo le llegan a sus miembros.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@org.junit.jupiter.api.extension.ExtendWith(org.springframework.boot.test.system.OutputCaptureExtension.class)
 class WebSocketFlujoTest {
 
     @LocalServerPort
@@ -60,6 +61,9 @@ class WebSocketFlujoTest {
     @Autowired
     private SimpMessagingTemplate topics;
 
+    @Autowired
+    private co.eci.c15.broker.ConexionesWebSocket conexiones;
+
     private final WebSocketStompClient cliente = new WebSocketStompClient(new StandardWebSocketClient());
 
     @BeforeEach
@@ -67,6 +71,7 @@ class WebSocketFlujoTest {
         cliente.setMessageConverter(new StringMessageConverter());
         when(tokens.decode(anyString())).thenAnswer(i -> {
             String token = i.getArgument(0);
+            if (token.startsWith("secreto-")) throw new org.springframework.security.oauth2.jwt.BadJwtException("firma invalida");
             return Jwt.withTokenValue(token).header("alg", "RS256").subject("auth0|" + token.substring("token-".length()))
                     .issuedAt(Instant.EPOCH).expiresAt(Instant.parse("2999-01-01T00:00:00Z")).build();
         });
@@ -94,6 +99,30 @@ class WebSocketFlujoTest {
             }
         });
         return llegados;
+    }
+
+    @Test
+    void unConnectConTokenInvalidoSeRechazaYQuedaRegistradoSinElToken(org.springframework.boot.test.system.CapturedOutput salida) {
+        StompHeaders connect = new StompHeaders();
+        connect.add("Authorization", "Bearer secreto-eyJhbGciOiJSUzI1NiJ9.no-debe-quedar-en-logs");
+        java.util.concurrent.CompletableFuture<StompSession> sesion = cliente.connectAsync("ws://localhost:" + puerto + "/ws",
+                new WebSocketHttpHeaders(), connect, new StompSessionHandlerAdapter() {
+                });
+
+        await().atMost(Duration.ofSeconds(10)).until(sesion::isDone);
+        org.junit.jupiter.api.Assertions.assertTrue(sesion.isCompletedExceptionally() || !sesion.join().isConnected(), "no queda conectado");
+        await().atMost(Duration.ofSeconds(5)).until(() -> salida.getAll().contains("CONNECT rechazado: Token invalido"));
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("no-debe-quedar-en-logs"), "el token no va a los logs");
+        org.junit.jupiter.api.Assertions.assertFalse(salida.getAll().contains("eyJhbGciOiJSUzI1NiJ9"), "ni un pedazo del token");
+    }
+
+    @Test
+    void cadaConexionDeTiempoRealSeCuentaMientrasEsteAbierta() throws Exception {
+        int antes = conexiones.abiertas();
+        StompSession dani = conectar("dani");
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).until(() -> conexiones.abiertas() == antes + 1);
+        dani.disconnect();
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).until(() -> conexiones.abiertas() == antes);
     }
 
     @Test

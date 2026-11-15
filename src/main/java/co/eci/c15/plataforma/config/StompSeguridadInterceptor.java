@@ -80,16 +80,23 @@ public class StompSeguridadInterceptor implements ChannelInterceptor {
         return message;
     }
 
+    /** Un CONNECT rechazado queda registrado (escenario S1) con el motivo, nunca con el token. */
     private Jwt validarToken(StompHeaderAccessor stomp) {
         String autorizacion = stomp.getFirstNativeHeader("Authorization");
         if (autorizacion == null || !autorizacion.startsWith(PREFIJO_TOKEN)) {
-            throw new MessagingException("Falta el token");
+            throw rechazar("Falta el token", null);
         }
         try {
             return tokens.decode(autorizacion.substring(PREFIJO_TOKEN.length()));
         } catch (JwtException e) {
-            throw new MessagingException("Token invalido", e);
+            throw rechazar("Token invalido", e);
         }
+    }
+
+    private static MessagingException rechazar(String motivo, JwtException causa) {
+        log.atWarn().addKeyValue("evento", "stomp.rechazado").addKeyValue("motivo", motivo)
+                .log("CONNECT rechazado: {}", motivo);
+        return causa == null ? new MessagingException(motivo) : new MessagingException(motivo, causa);
     }
 
     private static boolean permitidoEnviar(StompHeaderAccessor stomp) {
@@ -125,9 +132,11 @@ public class StompSeguridadInterceptor implements ChannelInterceptor {
         }
     }
 
+    /** Una suscripcion o un envio no permitido se descarta y queda registrado (escenario S2). */
     private static Message<?> denegar(StompHeaderAccessor stomp) {
-        log.warn("{} denegado a {} para {}", stomp.getCommand(), stomp.getDestination(),
-                stomp.getUser() != null ? stomp.getUser().getName() : "sin usuario");
+        String usuario = stomp.getUser() != null ? stomp.getUser().getName() : "sin usuario";
+        log.atWarn().addKeyValue("evento", "stomp.denegado").addKeyValue("comando", stomp.getCommand())
+                .log("{} denegado a {} para {}", stomp.getCommand(), stomp.getDestination(), usuario);
         return null;
     }
 }
